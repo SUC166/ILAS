@@ -6,6 +6,9 @@ import os, re, time, secrets, hashlib
 from datetime import datetime, timedelta, timezone
 from streamlit_autorefresh import st_autorefresh
 
+
+if "rep" not in st.session_state:
+    st.session_state.rep = False
 # ===== TIMEZONE (UTC +1 NIGERIA) =====
 WAT = timezone(timedelta(hours=1))
 
