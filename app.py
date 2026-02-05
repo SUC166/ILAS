@@ -1,4 +1,6 @@
 import streamlit as st
+import requests
+import base64
 import pandas as pd
 import os, re, time, secrets, hashlib
 from datetime import datetime, timedelta, timezone
@@ -20,6 +22,40 @@ CODES_FILE = "codes.csv"
 SESSION_COLS = ["session_id", "type", "title", "status", "created_at", "department"]
 RECORD_COLS = ["session_id", "name", "matric", "time", "device_id", "department"]
 CODE_COLS = ["session_id", "code", "created_at"]
+
+def upload_to_github(filename, content):
+    token = st.secrets["GITHUB_TOKEN"]
+    repo = st.secrets["GITHUB_REPO"]
+
+    url = f"https://api.github.com/repos/{repo}/contents/{filename}"
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+
+    encoded = base64.b64encode(content).decode()
+
+    data = {
+        "message": f"Upload attendance {filename}",
+        "content": encoded
+    }
+
+    r = requests.put(url, json=data, headers=headers)
+    return r.status_code in (200, 201)
+
+
+def list_github_attendance_files():
+    token = st.secrets["GITHUB_TOKEN"]
+    repo = st.secrets["GITHUB_REPO"]
+
+    url = f"https://api.github.com/repos/{repo}/contents/attendance"
+    headers = {"Authorization": f"token {token}"}
+
+    r = requests.get(url, headers=headers)
+    if r.status_code != 200:
+        return []
+
+    return r.json()
 
 def load_csv(file, cols):
     return pd.read_csv(file, dtype=str) if os.path.exists(file) else pd.DataFrame(columns=cols)
@@ -141,7 +177,35 @@ def rep_login():
             st.rerun()
         else:
             st.error("Invalid credentials.")
+def attendance_archive():
+    st.title("📚 Attendance Archive")
 
+    if not st.session_state.get("rep"):
+        st.error("Course Rep access only.")
+        return
+
+    files = list_github_attendance_files()
+
+    if not files:
+        st.info("No archived attendances found.")
+        return
+
+    csv_files = [f for f in files if f["name"].endswith(".csv")]
+    names = [f["name"] for f in csv_files]
+
+    choice = st.selectbox("Select Attendance", names)
+
+    if choice:
+        file = next(f for f in csv_files if f["name"] == choice)
+        csv_data = requests.get(file["download_url"]).content
+
+        st.download_button(
+            "📥 Download Attendance",
+            csv_data,
+            file_name=choice,
+            mime="text/csv"
+        )
+        
 def rep_dashboard():
     st_autorefresh(interval=1000, key="r")
     st.title("EPE Course Rep Dashboard")
@@ -180,9 +244,20 @@ def rep_dashboard():
         st.caption(f"Refresh in {rem}s")
 
         if st.button("🛑 END ATTENDANCE"):
-            sessions.loc[sessions["session_id"] == sid, "status"] = "Ended"
-            save_csv(sessions, SESSIONS_FILE)
-            st.rerun()
+    sessions.loc[sessions["session_id"] == sid, "status"] = "Ended"
+    save_csv(sessions, SESSIONS_FILE)
+
+    out = data.copy().reset_index(drop=True)
+    out.insert(0, "S/N", range(1, len(out) + 1))
+    csv_bytes = out[
+        ["S/N", "department", "name", "matric", "time"]
+    ].to_csv(index=False).encode()
+
+    filename = f"attendance/{sess['title'].replace(' ', '_')}.csv"
+    upload_to_github(filename, csv_bytes)
+
+    st.success("Attendance ended & uploaded to cloud ☁️")
+    st.rerun()
 
     st.divider()
     st.subheader("➕ Manual Entry")
@@ -244,8 +319,17 @@ def main():
     if "rep" not in st.session_state:
         st.session_state.rep = False
 
-    page = st.sidebar.selectbox("Page", ["Student", "Course Rep"])
-    student_page() if page == "Student" else (rep_dashboard() if st.session_state.rep else rep_login())
+    page = st.sidebar.selectbox(
+    "Page",
+    ["Student", "Course Rep", "Attendance Archive"]
+)
+
+if page == "Student":
+    student_page()
+elif page == "Course Rep":
+    rep_dashboard() if st.session_state.rep else rep_login()
+else:
+    attendance_archive()
 
 if __name__ == "__main__":
     main()
