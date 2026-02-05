@@ -346,20 +346,18 @@ def rep_dashboard():
 
 
 def main():
-    if "rep" not in st.session_state:
-        st.session_state.rep = False
-
     page = st.sidebar.selectbox(
-    "Page",
-    ["Student", "Course Rep", "Attendance Archive"]
-)
+        "Page",
+        ["Student", "Course Rep", "Attendance Archive"]
+    )
 
-if page == "Student":
-    student_page()
-elif page == "Course Rep":
-    rep_dashboard() if st.session_state.rep else rep_login()
-else:
-    attendance_archive()
+    if page == "Student":
+        student_page()
+    elif page == "Course Rep":
+        rep_dashboard() if st.session_state.rep else rep_login()
+    else:
+        attendance_archive()
+
 
 if __name__ == "__main__":
     main()
