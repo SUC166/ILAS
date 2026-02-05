@@ -221,7 +221,14 @@ def rep_dashboard():
 
     if st.button("Start Attendance") and sessions[sessions["status"] == "Active"].empty:
         sid = str(time.time())
-        sessions.loc[len(sessions)] = [sid, att, session_title(att, course), "Active", now(), DEPARTMENT]
+        sessions.loc[len(sessions)] = [
+            sid,
+            att,
+            session_title(att, course),
+            "Active",
+            now(),
+            DEPARTMENT
+        ]
         save_csv(sessions, SESSIONS_FILE)
         write_new_code(sid)
         save_csv(pd.DataFrame(columns=RECORD_COLS), RECORDS_FILE)
@@ -230,35 +237,41 @@ def rep_dashboard():
     if sessions.empty:
         return
 
-    sid = st.selectbox("Select Session", sessions["session_id"],
-        format_func=lambda x: sessions[sessions["session_id"] == x]["title"].iloc[0])
+    sid = st.selectbox(
+        "Select Session",
+        sessions["session_id"],
+        format_func=lambda x: sessions[sessions["session_id"] == x]["title"].iloc[0]
+    )
 
     sess = sessions[sessions["session_id"] == sid].iloc[0]
     data = records[records["session_id"] == sid]
 
     st.write(f"Status: {sess['status']}")
 
+    # ---------------- ACTIVE SESSION ----------------
     if sess["status"] == "Active":
         code, rem = rep_live_code(sid)
         st.markdown(f"## Live Code: `{code}`")
         st.caption(f"Refresh in {rem}s")
 
         if st.button("🛑 END ATTENDANCE"):
-    sessions.loc[sessions["session_id"] == sid, "status"] = "Ended"
-    save_csv(sessions, SESSIONS_FILE)
+            sessions.loc[sessions["session_id"] == sid, "status"] = "Ended"
+            save_csv(sessions, SESSIONS_FILE)
 
-    out = data.copy().reset_index(drop=True)
-    out.insert(0, "S/N", range(1, len(out) + 1))
-    csv_bytes = out[
-        ["S/N", "department", "name", "matric", "time"]
-    ].to_csv(index=False).encode()
+            out = data.copy().reset_index(drop=True)
+            out.insert(0, "S/N", range(1, len(out) + 1))
 
-    filename = f"attendance/{sess['title'].replace(' ', '_')}.csv"
-    upload_to_github(filename, csv_bytes)
+            csv_bytes = out[
+                ["S/N", "department", "name", "matric", "time"]
+            ].to_csv(index=False).encode()
 
-    st.success("Attendance ended & uploaded to cloud ☁️")
-    st.rerun()
+            filename = f"attendance/{sess['title'].replace(' ', '_')}.csv"
+            upload_to_github(filename, csv_bytes)
 
+            st.success("Attendance ended & uploaded to cloud ☁️")
+            st.rerun()
+
+    # ---------------- MANUAL ENTRY ----------------
     st.divider()
     st.subheader("➕ Manual Entry")
 
@@ -269,10 +282,18 @@ def rep_dashboard():
         if not re.fullmatch(r"\d{11}", mm):
             st.error("Invalid matric.")
         else:
-            records.loc[len(records)] = [sid, mn, mm, now(), "MANUAL", DEPARTMENT]
+            records.loc[len(records)] = [
+                sid,
+                mn,
+                mm,
+                now(),
+                "MANUAL",
+                DEPARTMENT
+            ]
             save_csv(records, RECORDS_FILE)
             st.rerun()
 
+    # ---------------- RECORDS VIEW ----------------
     st.divider()
     st.subheader("Attendance Records")
 
@@ -292,7 +313,8 @@ def rep_dashboard():
         with c1:
             if st.button("✏️ Update"):
                 records.loc[
-                    (records["session_id"] == sid) & (records["matric"] == row["matric"]),
+                    (records["session_id"] == sid) &
+                    (records["matric"] == row["matric"]),
                     ["name", "matric"]
                 ] = [en, em]
                 save_csv(records, RECORDS_FILE)
@@ -309,10 +331,18 @@ def rep_dashboard():
                 save_csv(records, RECORDS_FILE)
                 st.rerun()
 
+    # ---------------- DOWNLOAD AFTER END ----------------
     if sess["status"] == "Ended":
         out = view.copy()
-        csv = out[["S/N", "department", "name", "matric", "time"]].to_csv(index=False).encode()
-        st.download_button("📥 Download CSV", csv, file_name=f"{sess['title']}.csv")
+        csv = out[
+            ["S/N", "department", "name", "matric", "time"]
+        ].to_csv(index=False).encode()
+
+        st.download_button(
+            "📥 Download CSV",
+            csv,
+            file_name=f"{sess['title']}.csv"
+        )
 
 
 def main():
