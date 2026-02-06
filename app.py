@@ -299,19 +299,27 @@ def rep_dashboard():
     mm = st.text_input("Matric (Manual)")
 
     if st.button("Add Manually"):
-        if not re.fullmatch(r"\d{11}", mm):
-            st.error("Invalid matric.")
-        else:
-            records.loc[len(records)] = [
-                sid,
-                mn,
-                mm,
-                now(),
-                "MANUAL",
-                DEPARTMENT
-            ]
-            save_csv(records, RECORDS_FILE)
-            st.rerun()
+    if not re.fullmatch(r"\d{11}", mm):
+        st.error("Invalid matric.")
+    elif not records[
+        (records["session_id"] == sid) &
+        (
+            (records["matric"] == mm) |
+            (records["name"].str.lower() == mn.lower())
+        )
+    ].empty:
+        st.error("This student has already been marked present.")
+    else:
+        records.loc[len(records)] = [
+            sid,
+            mn.strip(),
+            mm,
+            now(),
+            "MANUAL",
+            DEPARTMENT
+        ]
+        save_csv(records, RECORDS_FILE)
+        st.rerun()
 
     # ---------------- RECORDS VIEW ----------------
     st.divider()
@@ -436,19 +444,26 @@ def rep_dashboard():
 
         with c1:
             if st.button("✏️ Update"):
-                if em != row["matric"] and not records[
-                    (records["session_id"] == sid) &
-                    (records["matric"] == em)
-                ].empty:
-                    st.error("Another student already uses this matric number.")
-                else:
-                    records.loc[
-                        (records["session_id"] == sid) &
-                        (records["matric"] == row["matric"]),
-                        ["name", "matric"]
-                    ] = [en, em]
-                    save_csv(records, RECORDS_FILE)
-                    st.rerun()
+    conflict = records[
+        (records["session_id"] == sid) &
+        (
+            (records["matric"] == em) |
+            (records["name"].str.lower() == en.lower())
+        ) &
+        (records["matric"] != row["matric"])
+    ]
+
+    if not conflict.empty:
+        st.error("Another record already exists with this name or matric.")
+    else:
+        records.loc[
+            (records["session_id"] == sid) &
+            (records["matric"] == row["matric"]),
+            ["name", "matric"]
+        ] = [en.strip(), em]
+
+        save_csv(records, RECORDS_FILE)
+        st.rerun()
 
         with c2:
             if st.button("🗑️ Delete"):
