@@ -443,6 +443,47 @@ if st.button("Add Manually"):
     st.dataframe(view, use_container_width=True)
 
     if not view.empty:
+    sn = st.number_input("Select S/N", 1, len(view), 1)
+    row = view.iloc[sn - 1]
+
+    en = st.text_input("Edit Name", row["name"])
+    em = st.text_input("Edit Matric", row["matric"])
+
+    st.subheader("Edit / Delete Record")
+
+    if st.button("✏️ Update Selected Record"):
+        conflict = records[
+            (records["session_id"] == sid) &
+            (
+                (records["matric"] == em) |
+                (records["name"].str.lower() == en.lower())
+            ) &
+            (records["matric"] != row["matric"])
+        ]
+
+        if not conflict.empty:
+            st.error("Another record already exists with this name or matric.")
+        else:
+            records.loc[
+                (records["session_id"] == sid) &
+                (records["matric"] == row["matric"]),
+                ["name", "matric"]
+            ] = [en.strip(), em]
+
+            save_csv(records, RECORDS_FILE)
+            st.rerun()
+
+    if st.button("🗑️ Delete Selected Record"):
+        records = records.drop(
+            records[
+                (records["session_id"] == sid) &
+                (records["matric"] == row["matric"])
+            ].index
+        )
+        save_csv(records, RECORDS_FILE)
+        st.rerun()
+
+    if not view.empty:
         sn = st.number_input("Select S/N", 1, len(view), 1)
         row = view.iloc[sn - 1]
 
