@@ -449,42 +449,7 @@ if st.button("Add Manually"):
         en = st.text_input("Edit Name", row["name"])
         em = st.text_input("Edit Matric", row["matric"])
 
-        c1, c2 = st.columns(2)
-
-        with c1:
-        with c1:
-    if st.button("✏️ Update"):
-        conflict = records[
-            (records["session_id"] == sid) &
-            (
-                (records["matric"] == em) |
-                (records["name"].str.lower() == en.lower())
-            ) &
-            (records["matric"] != row["matric"])
-        ]
-
-        if not conflict.empty:
-            st.error("Another record already exists with this name or matric.")
-        else:
-            records.loc[
-                (records["session_id"] == sid) &
-                (records["matric"] == row["matric"]),
-                ["name", "matric"]
-            ] = [en.strip(), em]
-
-            save_csv(records, RECORDS_FILE)
-            st.rerun()
-
-        with c2:
-            if st.button("🗑️ Delete"):
-                records = records.drop(
-                    records[
-                        (records["session_id"] == sid) &
-                        (records["matric"] == row["matric"])
-                    ].index
-                )
-                save_csv(records, RECORDS_FILE)
-                st.rerun()
+        
 
     if sess["status"] == "Ended":
         out = view.copy()
