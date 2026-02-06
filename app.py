@@ -292,34 +292,37 @@ def rep_dashboard():
             st.rerun()
 
     # ---------------- MANUAL ENTRY ----------------
-    st.divider()
-    st.subheader("➕ Manual Entry")
+st.divider()
+st.subheader("➕ Manual Entry")
 
-    mn = st.text_input("Name (Manual)")
-    mm = st.text_input("Matric (Manual)")
+mn = st.text_input("Name (Manual)")
+mm = st.text_input("Matric (Manual)")
 
-    if st.button("Add Manually"):
+if st.button("Add Manually"):
     if not re.fullmatch(r"\d{11}", mm):
         st.error("Invalid matric.")
-    elif not records[
-        (records["session_id"] == sid) &
-        (
-            (records["matric"] == mm) |
-            (records["name"].str.lower() == mn.lower())
-        )
-    ].empty:
-        st.error("This student has already been marked present.")
     else:
-        records.loc[len(records)] = [
-            sid,
-            mn.strip(),
-            mm,
-            now(),
-            "MANUAL",
-            DEPARTMENT
+        duplicate = records[
+            (records["session_id"] == sid) &
+            (
+                (records["matric"] == mm) |
+                (records["name"].str.lower() == mn.lower())
+            )
         ]
-        save_csv(records, RECORDS_FILE)
-        st.rerun()
+
+        if not duplicate.empty:
+            st.error("This student has already been marked present.")
+        else:
+            records.loc[len(records)] = [
+                sid,
+                mn.strip(),
+                mm,
+                now(),
+                "MANUAL",
+                DEPARTMENT
+            ]
+            save_csv(records, RECORDS_FILE)
+            st.rerun()
 
     # ---------------- RECORDS VIEW ----------------
     st.divider()
