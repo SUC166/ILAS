@@ -325,6 +325,110 @@ def rep_dashboard():
         sn = st.number_input("Select S/N", 1, len(view), 1)
         row = view.iloc[sn - 1]
 
+def rep_dashboard():
+    st_autorefresh(interval=1000, key="r")
+    st.title("EPE Course Rep Dashboard")
+
+    sessions = load_csv(SESSIONS_FILE, SESSION_COLS)
+    records = load_csv(RECORDS_FILE, RECORD_COLS)
+
+    if not sessions[sessions["status"] == "Active"].empty:
+        st.warning("⚠️ Attendance is ACTIVE. End it before starting a new one.")
+
+    att = st.selectbox("Attendance Type", ["Daily", "Per Subject"])
+    course = st.text_input("Course Code") if att == "Per Subject" else ""
+
+    if st.button("Start Attendance") and sessions[sessions["status"] == "Active"].empty:
+        sid = str(time.time())
+        sessions.loc[len(sessions)] = [
+            sid,
+            att,
+            session_title(att, course),
+            "Active",
+            now(),
+            DEPARTMENT
+        ]
+        save_csv(sessions, SESSIONS_FILE)
+        write_new_code(sid)
+        save_csv(pd.DataFrame(columns=RECORD_COLS), RECORDS_FILE)
+        st.rerun()
+
+    if sessions.empty:
+        return
+
+    sid = st.selectbox(
+        "Select Session",
+        sessions["session_id"],
+        format_func=lambda x: sessions[sessions["session_id"] == x]["title"].iloc[0]
+    )
+
+    sess = sessions[sessions["session_id"] == sid].iloc[0]
+    data = records[records["session_id"] == sid]
+
+    st.write(f"Status: {sess['status']}")
+
+    if sess["status"] == "Active":
+        code, rem = rep_live_code(sid)
+        st.markdown(f"## Live Code: `{code}`")
+        st.caption(f"Refresh in {rem}s")
+
+        if st.button("🛑 END ATTENDANCE"):
+            sessions.loc[
+                sessions["session_id"] == sid,
+                "status"
+            ] = "Ended"
+            save_csv(sessions, SESSIONS_FILE)
+
+            out = data.copy().reset_index(drop=True)
+            out.insert(0, "S/N", range(1, len(out) + 1))
+
+            csv_bytes = out[
+                ["S/N", "department", "name", "matric", "time"]
+            ].to_csv(index=False).encode()
+
+            filename = f"attendance/{sess['title'].replace(' ', '_')}.csv"
+            upload_to_github(filename, csv_bytes)
+
+            st.success("Attendance ended & uploaded to cloud ☁️")
+            st.rerun()
+
+    st.divider()
+    st.subheader("➕ Manual Entry")
+
+    mn = st.text_input("Name (Manual)")
+    mm = st.text_input("Matric (Manual)")
+
+    if st.button("Add Manually"):
+        if not re.fullmatch(r"\d{11}", mm):
+            st.error("Invalid matric.")
+        elif not records[
+            (records["session_id"] == sid) &
+            (records["matric"] == mm)
+        ].empty:
+            st.error("This student has already been marked present.")
+        else:
+            records.loc[len(records)] = [
+                sid,
+                mn,
+                mm,
+                now(),
+                "MANUAL",
+                DEPARTMENT
+            ]
+            save_csv(records, RECORDS_FILE)
+            st.rerun()
+
+    st.divider()
+    st.subheader("Attendance Records")
+
+    view = data.reset_index(drop=True)
+    view.insert(0, "S/N", range(1, len(view) + 1))
+    st.dataframe(view, use_container_width=True)
+
+    if not view.empty:
+        sn = st.number_input("Select S/N", 1, len(view), 1)
+        row = view.iloc[sn - 1]
+
         en = st.text_input("Edit Name", row["name"])
         em = st.text_input("Edit Matric", row["matric"])
 
@@ -332,13 +436,19 @@ def rep_dashboard():
 
         with c1:
             if st.button("✏️ Update"):
-                records.loc[
+                if em != row["matric"] and not records[
                     (records["session_id"] == sid) &
-                    (records["matric"] == row["matric"]),
-                    ["name", "matric"]
-                ] = [en, em]
-                save_csv(records, RECORDS_FILE)
-                st.rerun()
+                    (records["matric"] == em)
+                ].empty:
+                    st.error("Another student already uses this matric number.")
+                else:
+                    records.loc[
+                        (records["session_id"] == sid) &
+                        (records["matric"] == row["matric"]),
+                        ["name", "matric"]
+                    ] = [en, em]
+                    save_csv(records, RECORDS_FILE)
+                    st.rerun()
 
         with c2:
             if st.button("🗑️ Delete"):
@@ -351,7 +461,6 @@ def rep_dashboard():
                 save_csv(records, RECORDS_FILE)
                 st.rerun()
 
-    # ---------------- DOWNLOAD AFTER END ----------------
     if sess["status"] == "Ended":
         out = view.copy()
         csv = out[
@@ -362,7 +471,7 @@ def rep_dashboard():
             "📥 Download CSV",
             csv,
             file_name=f"{sess['title']}.csv"
-        )
+    )
 
 
 def main():
