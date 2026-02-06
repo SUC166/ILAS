@@ -238,6 +238,9 @@ def rep_dashboard():
     sessions = load_csv(SESSIONS_FILE, SESSION_COLS)
     records = load_csv(RECORDS_FILE, RECORD_COLS)
 
+    if not sessions[sessions["status"] == "Active"].empty:
+        st.warning("⚠️ Attendance is ACTIVE. End it before starting a new one.")
+
     att = st.selectbox("Attendance Type", ["Daily", "Per Subject"])
     course = st.text_input("Course Code") if att == "Per Subject" else ""
 
@@ -258,10 +261,15 @@ def rep_dashboard():
 
         save_csv(sessions, SESSIONS_FILE)
         write_new_code(sid)
-        save_csv(pd.DataFrame(columns=RECORD_COLS), RECORDS_FILE)
+
+        save_csv(
+            pd.DataFrame(columns=RECORD_COLS),
+            RECORDS_FILE
+        )
+
         st.rerun()
 
-if sessions.empty:
+    if sessions.empty:
         return
 
     sid = st.selectbox(
@@ -273,12 +281,15 @@ if sessions.empty:
     sess = sessions[sessions["session_id"] == sid].iloc[0]
     data = records[records["session_id"] == sid]
 
+    st.write(f"Status: {sess['status']}")
+
+    # ---------------- ACTIVE SESSION ----------------
     if sess["status"] == "Active":
         code, rem = rep_live_code(sid)
         st.markdown(f"## Live Code: `{code}`")
         st.caption(f"Refresh in {rem}s")
 
-        if st.button("END ATTENDANCE"):
+        if st.button("🛑 END ATTENDANCE"):
             sessions.loc[sessions["session_id"] == sid, "status"] = "Ended"
             save_csv(sessions, SESSIONS_FILE)
 
@@ -291,14 +302,48 @@ if sessions.empty:
 
             filename = attendance_filename(sess)
 
-            upload_attendance_to_lecturer_dashboard(
+            success = upload_attendance_to_lecturer_dashboard(
                 sess["date"],
                 filename,
                 csv_bytes
             )
 
-            st.success("Attendance locked & published")
+            if not success:
+                st.error("❌ Failed to publish attendance.")
+                return
+
+            st.success("✅ Attendance locked & published")
             st.rerun()
+
+    # ---------------- MANUAL ENTRY ----------------
+    st.divider()
+    st.subheader("➕ Manual Entry")
+
+    mn = st.text_input("Name (Manual)")
+    mm = st.text_input("Matric (Manual)")
+
+    if st.button("Add Manually"):
+        if not re.fullmatch(r"\d{11}", mm):
+            st.error("Invalid matric.")
+        else:
+            records.loc[len(records)] = [
+                sid,
+                mn,
+                mm,
+                now(),
+                "MANUAL",
+                DEPARTMENT
+            ]
+            save_csv(records, RECORDS_FILE)
+            st.rerun()
+
+    # ---------------- RECORDS VIEW ----------------
+    st.divider()
+    st.subheader("Attendance Records")
+
+    view = data.reset_index(drop=True)
+    view.insert(0, "S/N", range(1, len(view) + 1))
+    st.dataframe(view, use_container_width=True)
 
 def main():
     page = st.sidebar.selectbox(
