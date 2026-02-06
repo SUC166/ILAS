@@ -170,7 +170,7 @@ def student_page():
         st.success("Attendance recorded.")
 def app_footer():
     st.divider()
-    st.caption("❤️ Made with love by EPE 2025/26 · Support: 08118429150")
+    st.caption("❤️ Made with love by EPE 2025/26 · Support: wa.me/2348118429150")
     
 def rep_login():
     st.title("Course Rep Login")
