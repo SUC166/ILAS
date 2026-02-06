@@ -438,12 +438,20 @@ if st.button("Add Manually"):
     st.divider()
     st.subheader("Attendance Records")
 
-    view = data.reset_index(drop=True)
-    view.insert(0, "S/N", range(1, len(view) + 1))
-    st.dataframe(view, use_container_width=True)
+view = data.reset_index(drop=True)
+view.insert(0, "S/N", range(1, len(view) + 1))
+st.dataframe(view, use_container_width=True)
 
-    if not view.empty:
-    sn = st.number_input("Select S/N", 1, len(view), 1)
+sn = st.number_input(
+    "Select S/N (does nothing if no records)",
+    1,
+    max(1, len(view)),
+    1
+)
+
+if len(view) == 0:
+    st.info("No records to edit yet.")
+else:
     row = view.iloc[sn - 1]
 
     en = st.text_input("Edit Name", row["name"])
@@ -482,7 +490,6 @@ if st.button("Add Manually"):
         )
         save_csv(records, RECORDS_FILE)
         st.rerun()
-
     if not view.empty:
         sn = st.number_input("Select S/N", 1, len(view), 1)
         row = view.iloc[sn - 1]
