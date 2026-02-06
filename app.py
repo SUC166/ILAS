@@ -200,18 +200,20 @@ def attendance_archive():
     names = [f["name"] for f in csv_files]
 
     st.subheader("🔍 Find Attendance")
+    query = st.text_input("Search by course, date, or keyword")
 
-query = st.text_input("Search by course, date, or keyword")
+    filtered = [
+        n for n in names
+        if query.lower() in n.lower()
+    ]
 
-filtered = [
-    n for n in names
-    if query.lower() in n.lower()
-]
+    choice = st.selectbox(
+        "Select Attendance",
+        filtered if filtered else ["No matching records"]
+    )
 
-choice = st.selectbox(
-    "Select Attendance",
-    filtered if filtered else ["No matching records"]
-)
+    if choice == "No matching records":
+        return
 
     if choice:
         file = next(f for f in csv_files if f["name"] == choice)
