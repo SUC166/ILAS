@@ -168,7 +168,10 @@ def student_page():
         records.loc[len(records)] = [sid, name, matric, now(), device_id(), DEPARTMENT]
         save_csv(records, RECORDS_FILE)
         st.success("Attendance recorded.")
-
+def app_footer():
+    st.divider()
+    st.caption("❤️ Made with love by EPE 2025/26 · Support: 08118429150")
+    
 def rep_login():
     st.title("Course Rep Login")
     u = st.text_input("Username")
@@ -360,7 +363,7 @@ def main():
         rep_dashboard() if st.session_state.rep else rep_login()
     else:
         attendance_archive()
-
+    app_footer()
 
 if __name__ == "__main__":
     main()
