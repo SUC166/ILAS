@@ -2,79 +2,82 @@ import streamlit as st
 import requests
 import base64
 import pandas as pd
-import os, re, time, secrets, hashlib
+import os
+import re
+import time
+import secrets
+import hashlib
+
 from datetime import datetime, timedelta, timezone
 from streamlit_autorefresh import st_autorefresh
 
 
 if "rep" not in st.session_state:
     st.session_state.rep = False
+
+
 # ===== TIMEZONE (UTC +1 NIGERIA) =====
 WAT = timezone(timedelta(hours=1))
+
 
 TOKEN_LIFETIME = 20
 DEPARTMENT = "EPE"
 
-# === COURSE REP CREDENTIALS (AUTO-MANAGED) ===
-REP_NAME = "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27"
-REP_PASS = "aee408847d35e44e99430f0979c3357b85fe8dbb4535a494301198adbee85f27"
 
-REP_USERNAME_HASH = REP_NAME
-REP_PASSWORD_HASH = REP_PASS
+REP_USERNAME_HASH = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+REP_PASSWORD_HASH = "d74ff0ee8da3b9806b18c877dbf29bbde50b5bd8e4dad7a3a725000feb82e8f1"
 
 SESSIONS_FILE = "sessions.csv"
 RECORDS_FILE = "records.csv"
 CODES_FILE = "codes.csv"
 
-SESSION_COLS = ["session_id", "type", "title", "status", "created_at", "department"]
-RECORD_COLS = ["session_id", "name", "matric", "time", "device_id", "department"]
-CODE_COLS = ["session_id", "code", "created_at"]
 
-def upload_to_github(filename, content):
-    token = st.secrets["GITHUB_TOKEN"]
-    repo = st.secrets["GITHUB_REPO"]
-
-    url = f"https://api.github.com/repos/{repo}/contents/{filename}"
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github.v3+json"
-    }
-
-    encoded = base64.b64encode(content).decode()
-
-    data = {
-        "message": f"Upload attendance {filename}",
-        "content": encoded
-    }
-
-    r = requests.put(url, json=data, headers=headers)
-    return r.status_code in (200, 201)
+SESSION_COLS = [
+    "session_id",
+    "type",
+    "title",
+    "status",
+    "date",
+    "created_at",
+    "department",
+    "course"
+]
 
 
-def list_github_attendance_files():
-    token = st.secrets["GITHUB_TOKEN"]
-    repo = st.secrets["GITHUB_REPO"]
+RECORD_COLS = [
+    "session_id",
+    "name",
+    "matric",
+    "time",
+    "device_id",
+    "department"
+]
 
-    url = f"https://api.github.com/repos/{repo}/contents/attendance"
-    headers = {"Authorization": f"token {token}"}
 
-    r = requests.get(url, headers=headers)
-    if r.status_code != 200:
-        return []
+CODE_COLS = [
+    "session_id",
+    "code",
+    "created_at"
+]
 
-    return r.json()
 
 def load_csv(file, cols):
-    return pd.read_csv(file, dtype=str) if os.path.exists(file) else pd.DataFrame(columns=cols)
+    if os.path.exists(file):
+        return pd.read_csv(file, dtype=str)
+    return pd.DataFrame(columns=cols)
+
 
 def save_csv(df, file):
     df.to_csv(file, index=False)
 
+
 def now():
     return datetime.now(WAT).strftime("%Y-%m-%d %H:%M:%S")
 
+
 def normalize(t):
     return re.sub(r"\s+", " ", str(t).strip()).lower()
+
 
 def sha256_hash(t):
     return hashlib.sha256(t.encode()).hexdigest()
@@ -85,18 +88,23 @@ def device_id():
         st.session_state.device_id = hashlib.sha256(raw.encode()).hexdigest()
     return st.session_state.device_id
 
+
 def gen_code():
     return f"{secrets.randbelow(10000):04d}"
 
+
 def session_title(att_type, course=""):
     base = datetime.now(WAT).strftime("%Y-%m-%d %H:%M")
-    return f"{DEPARTMENT} - {course} {base}" if att_type == "Per Subject" else f"{DEPARTMENT} - Daily {base}"
+    if att_type == "Per Subject":
+        return f"{DEPARTMENT} - {course} {base}"
+    return f"{DEPARTMENT} - Daily {base}"
 
 def write_new_code(sid):
     codes = load_csv(CODES_FILE, CODE_COLS)
     codes.loc[len(codes)] = [sid, gen_code(), now()]
     save_csv(codes, CODES_FILE)
     return codes.iloc[-1]["code"]
+
 
 def latest_code(sid):
     codes = load_csv(CODES_FILE, CODE_COLS)
@@ -117,12 +125,42 @@ def rep_live_code(sid):
 
     return c["code"], int(TOKEN_LIFETIME - age)
 
+
 def code_valid(sid, entered):
     c = latest_code(sid)
     if c is None:
         return False
+
     age = (datetime.now(WAT).replace(tzinfo=None) - c["created_at"]).total_seconds()
     return str(entered).zfill(4) == str(c["code"]).zfill(4) and age <= TOKEN_LIFETIME
+    
+def attendance_filename(sess):
+    date = sess["date"]
+    dept = sess["department"]
+    course = sess["course"].replace(" ", "")
+    start = sess["created_at"][11:16].replace(":", "-")
+
+    return f"{dept}_{course}_{date}_{start}.csv"
+
+def upload_attendance_to_lecturer_dashboard(date, filename, content):
+    token = st.secrets["LECTURER_DASHBOARD_PAT"]
+    repo = st.secrets["LECTURER_DASHBOARD_REPO"]
+
+    path = f"attendance/{date}/{filename}"
+    url = f"https://api.github.com/repos/{repo}/contents/{path}"
+
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+
+    payload = {
+        "message": f"Add attendance {filename}",
+        "content": base64.b64encode(content).decode()
+    }
+
+    r = requests.put(url, json=payload, headers=headers)
+    return r.status_code in (200, 201)
 
 def student_page():
     sessions = load_csv(SESSIONS_FILE, SESSION_COLS)
@@ -169,13 +207,18 @@ def student_page():
             st.error("One entry per device.")
             return
 
-        records.loc[len(records)] = [sid, name, matric, now(), device_id(), DEPARTMENT]
+        records.loc[len(records)] = [
+            sid,
+            name,
+            matric,
+            now(),
+            device_id(),
+            DEPARTMENT
+        ]
+
         save_csv(records, RECORDS_FILE)
         st.success("Attendance recorded.")
-def app_footer():
-    st.divider()
-    st.caption("❤️ Made with love by EPE 2025/26 · Support: wa.me/2348118429150")
-    
+
 def rep_login():
     st.title("Course Rep Login")
     u = st.text_input("Username")
@@ -187,78 +230,38 @@ def rep_login():
             st.rerun()
         else:
             st.error("Invalid credentials.")
-def attendance_archive():
-    st.title("📚 Attendance Archive")
 
-    if not st.session_state.get("rep"):
-        st.error("Course Rep access only.")
-        return
-
-    files = list_github_attendance_files()
-
-    if not files:
-        st.info("No archived attendances found.")
-        return
-
-    csv_files = [f for f in files if f["name"].endswith(".csv")]
-    names = [f["name"] for f in csv_files]
-
-    st.subheader("🔍 Find Attendance")
-    query = st.text_input("Search by course, date, or keyword")
-
-    filtered = [
-        n for n in names
-        if query.lower() in n.lower()
-    ]
-
-    choice = st.selectbox(
-        "Select Attendance",
-        filtered if filtered else ["No matching records"]
-    )
-
-    if choice == "No matching records":
-        return
-
-    if choice:
-        file = next(f for f in csv_files if f["name"] == choice)
-        csv_data = requests.get(file["download_url"]).content
-
-        st.download_button(
-            "📥 Download Attendance",
-            csv_data,
-            file_name=choice,
-            mime="text/csv"
-        )
-        
 def rep_dashboard():
     st_autorefresh(interval=1000, key="r")
-    st.title("EPE Course Rep Dashboard")
+    st.title("Course Rep Dashboard")
 
     sessions = load_csv(SESSIONS_FILE, SESSION_COLS)
     records = load_csv(RECORDS_FILE, RECORD_COLS)
-
-    if not sessions[sessions["status"] == "Active"].empty:
-        st.warning("⚠️ Attendance is ACTIVE. End it before starting a new one.")
 
     att = st.selectbox("Attendance Type", ["Daily", "Per Subject"])
     course = st.text_input("Course Code") if att == "Per Subject" else ""
 
     if st.button("Start Attendance") and sessions[sessions["status"] == "Active"].empty:
         sid = str(time.time())
+        today = datetime.now(WAT).strftime("%Y-%m-%d")
+
         sessions.loc[len(sessions)] = [
             sid,
             att,
             session_title(att, course),
             "Active",
+            today,
             now(),
-            DEPARTMENT
+            DEPARTMENT,
+            course
         ]
+
         save_csv(sessions, SESSIONS_FILE)
         write_new_code(sid)
         save_csv(pd.DataFrame(columns=RECORD_COLS), RECORDS_FILE)
         st.rerun()
 
-    if sessions.empty:
+if sessions.empty:
         return
 
     sid = st.selectbox(
@@ -270,15 +273,12 @@ def rep_dashboard():
     sess = sessions[sessions["session_id"] == sid].iloc[0]
     data = records[records["session_id"] == sid]
 
-    st.write(f"Status: {sess['status']}")
-
-    # ---------------- ACTIVE SESSION ----------------
     if sess["status"] == "Active":
         code, rem = rep_live_code(sid)
         st.markdown(f"## Live Code: `{code}`")
         st.caption(f"Refresh in {rem}s")
 
-        if st.button("🛑 END ATTENDANCE"):
+        if st.button("END ATTENDANCE"):
             sessions.loc[sessions["session_id"] == sid, "status"] = "Ended"
             save_csv(sessions, SESSIONS_FILE)
 
@@ -289,100 +289,28 @@ def rep_dashboard():
                 ["S/N", "department", "name", "matric", "time"]
             ].to_csv(index=False).encode()
 
-            filename = f"attendance/{sess['title'].replace(' ', '_')}.csv"
-            upload_to_github(filename, csv_bytes)
+            filename = attendance_filename(sess)
 
-            st.success("Attendance ended & uploaded to cloud ☁️")
+            upload_attendance_to_lecturer_dashboard(
+                sess["date"],
+                filename,
+                csv_bytes
+            )
+
+            st.success("Attendance locked & published")
             st.rerun()
-
-    # ---------------- MANUAL ENTRY ----------------
-    st.divider()
-    st.subheader("➕ Manual Entry")
-
-    mn = st.text_input("Name (Manual)")
-    mm = st.text_input("Matric (Manual)")
-
-    if st.button("Add Manually"):
-        if not re.fullmatch(r"\d{11}", mm):
-            st.error("Invalid matric.")
-        else:
-            records.loc[len(records)] = [
-                sid,
-                mn,
-                mm,
-                now(),
-                "MANUAL",
-                DEPARTMENT
-            ]
-            save_csv(records, RECORDS_FILE)
-            st.rerun()
-
-    # ---------------- RECORDS VIEW ----------------
-    st.divider()
-    st.subheader("Attendance Records")
-
-    view = data.reset_index(drop=True)
-    view.insert(0, "S/N", range(1, len(view) + 1))
-    st.dataframe(view, use_container_width=True)
-
-    if not view.empty:
-        sn = st.number_input("Select S/N", 1, len(view), 1)
-        row = view.iloc[sn - 1]
-
-        en = st.text_input("Edit Name", row["name"])
-        em = st.text_input("Edit Matric", row["matric"])
-
-        c1, c2 = st.columns(2)
-
-        with c1:
-            if st.button("✏️ Update"):
-                records.loc[
-                    (records["session_id"] == sid) &
-                    (records["matric"] == row["matric"]),
-                    ["name", "matric"]
-                ] = [en, em]
-                save_csv(records, RECORDS_FILE)
-                st.rerun()
-
-        with c2:
-            if st.button("🗑️ Delete"):
-                records = records.drop(
-                    records[
-                        (records["session_id"] == sid) &
-                        (records["matric"] == row["matric"])
-                    ].index
-                )
-                save_csv(records, RECORDS_FILE)
-                st.rerun()
-
-    # ---------------- DOWNLOAD AFTER END ----------------
-    if sess["status"] == "Ended":
-        out = view.copy()
-        csv = out[
-            ["S/N", "department", "name", "matric", "time"]
-        ].to_csv(index=False).encode()
-
-        st.download_button(
-            "📥 Download CSV",
-            csv,
-            file_name=f"{sess['title']}.csv"
-        )
-
 
 def main():
     page = st.sidebar.selectbox(
         "Page",
-        ["Student", "Course Rep", "Attendance Archive"]
+        ["Student", "Course Rep"]
     )
 
     if page == "Student":
         student_page()
-    elif page == "Course Rep":
-        rep_dashboard() if st.session_state.rep else rep_login()
     else:
-        attendance_archive()
-    app_footer()
+        rep_dashboard() if st.session_state.rep else rep_login()
+
 
 if __name__ == "__main__":
     main()
-
