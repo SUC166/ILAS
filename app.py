@@ -401,23 +401,29 @@ def rep_dashboard():
             st.rerun()
 
     st.divider()
-    st.subheader("➕ Manual Entry")
+st.subheader("➕ Manual Entry")
 
-    mn = st.text_input("Name (Manual)")
-    mm = st.text_input("Matric (Manual)")
+mn = st.text_input("Name (Manual)")
+mm = st.text_input("Matric (Manual)")
 
-    if st.button("Add Manually"):
-        if not re.fullmatch(r"\d{11}", mm):
-            st.error("Invalid matric.")
-        elif not records[
+if st.button("Add Manually"):
+    if not re.fullmatch(r"\d{11}", mm):
+        st.error("Invalid matric.")
+    else:
+        duplicate = records[
             (records["session_id"] == sid) &
-            (records["matric"] == mm)
-        ].empty:
+            (
+                (records["matric"] == mm) |
+                (records["name"].str.lower() == mn.lower())
+            )
+        ]
+
+        if not duplicate.empty:
             st.error("This student has already been marked present.")
         else:
             records.loc[len(records)] = [
                 sid,
-                mn,
+                mn.strip(),
                 mm,
                 now(),
                 "MANUAL",
