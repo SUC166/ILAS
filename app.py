@@ -283,7 +283,7 @@ def rep_dashboard():
 
     st.write(f"Status: {sess['status']}")
 
-    # ---------------- ACTIVE SESSION ----------------
+    # ================= ACTIVE SESSION =================
     if sess["status"] == "Active":
         code, rem = rep_live_code(sid)
         st.markdown(f"## Live Code: `{code}`")
@@ -315,29 +315,30 @@ def rep_dashboard():
             st.success("✅ Attendance locked & published")
             st.rerun()
 
-    # ---------------- MANUAL ENTRY ----------------
-    st.divider()
-    st.subheader("➕ Manual Entry")
+    # ================= MANUAL ENTRY =================
+    if sess["status"] == "Active":
+        st.divider()
+        st.subheader("➕ Manual Entry")
 
-    mn = st.text_input("Name (Manual)")
-    mm = st.text_input("Matric (Manual)")
+        mn = st.text_input("Name (Manual)")
+        mm = st.text_input("Matric (Manual)")
 
-    if st.button("Add Manually"):
-        if not re.fullmatch(r"\d{11}", mm):
-            st.error("Invalid matric.")
-        else:
-            records.loc[len(records)] = [
-                sid,
-                mn,
-                mm,
-                now(),
-                "MANUAL",
-                DEPARTMENT
-            ]
-            save_csv(records, RECORDS_FILE)
-            st.rerun()
+        if st.button("Add Manually"):
+            if not re.fullmatch(r"\d{11}", mm):
+                st.error("Invalid matric.")
+            else:
+                records.loc[len(records)] = [
+                    sid,
+                    mn,
+                    mm,
+                    now(),
+                    "MANUAL",
+                    DEPARTMENT
+                ]
+                save_csv(records, RECORDS_FILE)
+                st.rerun()
 
-    # ---------------- RECORDS VIEW ----------------
+    # ================= RECORDS VIEW =================
     st.divider()
     st.subheader("Attendance Records")
 
@@ -345,6 +346,49 @@ def rep_dashboard():
     view.insert(0, "S/N", range(1, len(view) + 1))
     st.dataframe(view, use_container_width=True)
 
+    # ================= EDIT / DELETE =================
+    if sess["status"] == "Active" and not view.empty:
+        st.divider()
+        st.subheader("✏️ Edit / 🗑️ Delete Entry")
+
+        sn = st.number_input(
+            "Select S/N",
+            min_value=1,
+            max_value=len(view),
+            value=1
+        )
+
+        row = view.iloc[sn - 1]
+
+        en = st.text_input("Edit Name", row["name"])
+        em = st.text_input("Edit Matric", row["matric"])
+
+        c1, c2 = st.columns(2)
+
+        with c1:
+            if st.button("✏️ Update"):
+                records.loc[
+                    (records["session_id"] == sid) &
+                    (records["matric"] == row["matric"]),
+                    ["name", "matric"]
+                ] = [en, em]
+
+                save_csv(records, RECORDS_FILE)
+                st.success("Updated successfully")
+                st.rerun()
+
+        with c2:
+            if st.button("🗑️ Delete"):
+                records = records.drop(
+                    records[
+                        (records["session_id"] == sid) &
+                        (records["matric"] == row["matric"])
+                    ].index
+                )
+
+                save_csv(records, RECORDS_FILE)
+                st.success("Deleted successfully")
+                st.rerun()
 def main():
     page = st.sidebar.selectbox(
         "Page",
