@@ -133,9 +133,18 @@ def code_valid(sid, entered):
 
 def attendance_filename(sess):
     date = sess["date"]
-    course = sess["course"].replace(" ", "")
+
+    course_raw = sess["course"]
+    course = (
+        str(course_raw).replace(" ", "")
+        if pd.notna(course_raw) and str(course_raw).strip()
+        else "Daily"
+    )
+
     start = sess["created_at"][11:16].replace(":", "-")
+
     return f"{DEPARTMENT}_{LEVEL_NAME}_{course}_{date}_{start}.csv"
+
 
 
 def upload_attendance_to_lecturer_dashboard(date, filename, content):
