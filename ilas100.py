@@ -10,6 +10,7 @@ import hashlib
 
 from datetime import datetime, timedelta, timezone
 from streamlit_autorefresh import st_autorefresh
+from streamlit_cookies_manager import CookieManager
 
 
 # ================= LEVEL CONFIG =================
@@ -18,6 +19,9 @@ LEVEL_NAME = "100LVL"  # CHANGE PER FILE
 
 if "rep" not in st.session_state:
     st.session_state.rep = False
+
+cookies = CookieManager()
+cookies.get_all()
 
 
 # ===== TIMEZONE (UTC +1 NIGERIA) =====
@@ -77,10 +81,16 @@ def sha256_hash(t):
 
 
 def device_id():
-    if "device_id" not in st.session_state:
-        raw = f"{time.time()}{secrets.token_hex()}"
-        st.session_state.device_id = hashlib.sha256(raw.encode()).hexdigest()
-    return st.session_state.device_id
+    cookies = CookieManager()
+    cookies.get_all()
+
+    if "ilas_device_id" not in cookies:
+        raw = f"{time.time()}{secrets.token_hex(16)}"
+        did = hashlib.sha256(raw.encode()).hexdigest()
+        cookies["ilas_device_id"] = did
+        return did
+
+    return cookies["ilas_device_id"]
 
 
 def gen_code():
