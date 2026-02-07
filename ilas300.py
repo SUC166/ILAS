@@ -13,7 +13,7 @@ from streamlit_autorefresh import st_autorefresh
 
 
 # ================= LEVEL CONFIG =================
-LEVEL_NAME = "100LVL"  # CHANGE PER FILE
+LEVEL_NAME = "300LVL"  # CHANGE PER FILE
 
 
 if "rep" not in st.session_state:
