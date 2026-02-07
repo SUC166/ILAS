@@ -388,10 +388,19 @@ def rep_dashboard():
 
 def main():
     page = st.sidebar.selectbox("Page", ["Student", "Course Rep"])
+
     if page == "Student":
         student_page()
     else:
         rep_dashboard() if st.session_state.rep else rep_login()
+
+    # ================== FOOTER ==================
+    st.divider()
+    st.caption(
+        "❤️ Made with love by EPE2025/26. FODC. "
+        "Support: wa.me/2348118429150"
+    )
+
 
 
 if __name__ == "__main__":
