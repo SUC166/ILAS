@@ -21,7 +21,6 @@ if "rep" not in st.session_state:
     st.session_state.rep = False
 
 cookies = CookieManager()
-cookies.get_all()
 
 
 # ===== TIMEZONE (UTC +1 NIGERIA) =====
@@ -82,7 +81,6 @@ def sha256_hash(t):
 
 def device_id():
     cookies = CookieManager()
-    cookies.get_all()
 
     if "ilas_device_id" not in cookies:
         raw = f"{time.time()}{secrets.token_hex(16)}"
@@ -91,6 +89,7 @@ def device_id():
         return did
 
     return cookies["ilas_device_id"]
+
 
 
 def gen_code():
