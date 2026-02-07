@@ -80,11 +80,24 @@ def sha256_hash(t):
 
 
 def device_id():
-    if "ilas_device_id" not in cookies:
-        raw = f"{time.time()}{secrets.token_hex(16)}"
-        did = hashlib.sha256(raw.encode()).hexdigest()
-        cookies["ilas_device_id"] = did
-        return did
+    # If already cached in session, reuse instantly
+    if "ilas_device_id_cached" in st.session_state:
+        return st.session_state.ilas_device_id_cached
+
+    # If cookie exists, reuse it
+    if "ilas_device_id" in cookies:
+        st.session_state.ilas_device_id_cached = cookies["ilas_device_id"]
+        return cookies["ilas_device_id"]
+
+    # Otherwise generate ONCE
+    raw = f"{time.time()}{secrets.token_hex(16)}"
+    did = hashlib.sha256(raw.encode()).hexdigest()
+
+    cookies["ilas_device_id"] = did
+    st.session_state.ilas_device_id_cached = did
+
+    return did
+
 
     return cookies["ilas_device_id"]
 
