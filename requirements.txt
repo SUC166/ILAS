@@ -5,3 +5,4 @@ qrcode
 pillow
 streamlit-autorefresh
 requests
+streamlit-cookies-manager
