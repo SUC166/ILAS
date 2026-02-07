@@ -51,7 +51,12 @@ def login_page():
 
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
-
+    st.divider()
+    st.caption(
+        "❤️ Made with love by EPE2025/26. FODC. "
+        "Support: wa.me/2348118429150"
+    )
+    
     if st.button("Login"):
         if (
             sha256_hash(username) == ADVISOR_USER_HASH
