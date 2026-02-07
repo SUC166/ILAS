@@ -10,6 +10,7 @@ import hashlib
 
 from datetime import datetime, timedelta, timezone
 from streamlit_autorefresh import st_autorefresh
+from streamlit_cookies_manager import CookieManager
 
 
 # ================= LEVEL CONFIG =================
@@ -18,6 +19,8 @@ LEVEL_NAME = "400LVL"  # CHANGE PER FILE
 
 if "rep" not in st.session_state:
     st.session_state.rep = False
+
+cookies = CookieManager()
 
 
 # ===== TIMEZONE (UTC +1 NIGERIA) =====
@@ -29,8 +32,8 @@ DEPARTMENT = "EPE"
 
 
 # ===== REP AUTH (DO NOT RENAME — CAMP UPDATES THESE) =====
-REP_NAME = "22caea8dfa2f7d60a4534d07e5ca359af862a23f59de3030639ae2db25e80864"
-REP_PASS = "3d66f74fd48822744da1ff290dd7c6b3c664f833e0aaca3671f93eefbf0ba6c4"
+REP_NAME = "55c8079ac96c6a4f6a94e3460c79e4006d62374cce6e9fc8b281938a3abc7627"
+REP_PASS = "55c8079ac96c6a4f6a94e3460c79e4006d62374cce6e9fc8b281938a3abc7627"
 
 REP_USERNAME_HASH = REP_NAME
 REP_PASSWORD_HASH = REP_PASS
@@ -77,10 +80,27 @@ def sha256_hash(t):
 
 
 def device_id():
-    if "device_id" not in st.session_state:
-        raw = f"{time.time()}{secrets.token_hex()}"
-        st.session_state.device_id = hashlib.sha256(raw.encode()).hexdigest()
-    return st.session_state.device_id
+    # If already cached in session, reuse instantly
+    if "ilas_device_id_cached" in st.session_state:
+        return st.session_state.ilas_device_id_cached
+
+    # If cookie exists, reuse it
+    if "ilas_device_id" in cookies:
+        st.session_state.ilas_device_id_cached = cookies["ilas_device_id"]
+        return cookies["ilas_device_id"]
+
+    # Otherwise generate ONCE
+    raw = f"{time.time()}{secrets.token_hex(16)}"
+    did = hashlib.sha256(raw.encode()).hexdigest()
+
+    cookies["ilas_device_id"] = did
+    st.session_state.ilas_device_id_cached = did
+
+    return did
+
+
+    return cookies["ilas_device_id"]
+
 
 
 def gen_code():
