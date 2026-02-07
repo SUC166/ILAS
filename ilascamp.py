@@ -285,12 +285,16 @@ def main():
     else:
         cgpa_calculator()
 
-    # ================== FOOTER ==================
+ # ================== FOOTER ==================
     st.divider()
-    st.caption(
-        "❤️ Made with love by EPE2025/26. FODC. "
-        "Support: wa.me/2348118429150"
+
+    st.markdown(
+    """
+    ❤️ Made with love by **EPE2025/26. FODC**  
+    📱 Support: [Chat on WhatsApp](https://wa.me/2348118429150)
+    """
     )
+
 
 
 if __name__ == "__main__":
