@@ -14,7 +14,7 @@ from streamlit_cookies_manager import CookieManager
 
 
 # ================= LEVEL CONFIG =================
-LEVEL_NAME = "100LVL"  # CHANGE PER FILE
+LEVEL_NAME = "200LVL"  # CHANGE PER FILE
 
 
 if "rep" not in st.session_state:
