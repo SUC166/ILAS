@@ -6,9 +6,10 @@ import re
 import json
 from datetime import datetime
 
-# ---------------- CONFIG ----------------
+# ---------------- PAGE CONFIG ----------------
 st.set_page_config(page_title="CAMP", layout="centered")
 
+# ---------------- ILAS LEVEL PATHS ----------------
 ILAS_PATHS = {
     "100LVL": "ilas100.py",
     "200LVL": "ilas200.py",
@@ -23,6 +24,16 @@ AUDIT_FILE = "audit_logs.json"
 # ---------------- AUTH CONFIG ----------------
 ADVISOR_USER_HASH = "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3"
 ADVISOR_PASS_HASH = "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3"
+
+# ---------------- GPA CONFIG ----------------
+GRADE_POINTS = {
+    "A": 5.0,
+    "B": 4.0,
+    "C": 3.0,
+    "D": 2.0,
+    "E": 1.0,
+    "F": 0.0,
+}
 
 # ---------------- HELPERS ----------------
 def sha256_hash(text: str) -> str:
@@ -64,7 +75,7 @@ def fetch_ilas_file(level):
     r = requests.get(url, headers=github_headers())
 
     if r.status_code != 200:
-        st.error(f"Failed to fetch {level} ILAS")
+        st.error(f"Failed to fetch {level} ILAS file")
         st.stop()
 
     data = r.json()
@@ -89,7 +100,6 @@ def push_ilas_file(updated_code, sha, level):
     file_path = ILAS_PATHS[level]
 
     url = f"https://api.github.com/repos/{repo}/contents/{file_path}"
-
     encoded = base64.b64encode(updated_code.encode()).decode()
 
     payload = {
@@ -101,7 +111,7 @@ def push_ilas_file(updated_code, sha, level):
     r = requests.put(url, headers=github_headers(), json=payload)
     return r.status_code in (200, 201)
 
-# ---------------- AUDIT LOGGING ----------------
+# ---------------- AUDIT LOGS ----------------
 def fetch_audit_logs():
     repo = st.secrets["GITHUB_REPO"]
     url = f"https://api.github.com/repos/{repo}/contents/{AUDIT_FILE}"
@@ -130,31 +140,32 @@ def push_audit_logs(logs, sha):
 
 def log_audit(level, status):
     logs, sha = fetch_audit_logs()
+    if sha is None:
+        return
 
-    entry = {
+    logs.append({
         "level": level,
         "action": "UPDATED_REP_CREDENTIALS",
         "timestamp": datetime.utcnow().isoformat(),
         "status": status
-    }
+    })
 
-    logs.append(entry)
     push_audit_logs(logs, sha)
 
-# ---------------- DASHBOARD ----------------
+# ---------------- CAMP DASHBOARD ----------------
 def camp_dashboard():
     st.title("🛠️ CAMP Dashboard")
     st.caption("Course Advisory & Management Platform")
 
     st.divider()
 
-    selected_level = st.selectbox(
-        "Select Level",
-        list(ILAS_PATHS.keys())
-    )
+    selected_level = st.selectbox("Select Level", list(ILAS_PATHS.keys()))
 
     rep_user = st.text_input(f"New Course Rep Username ({selected_level})")
-    rep_pass = st.text_input(f"New Course Rep Password ({selected_level})", type="password")
+    rep_pass = st.text_input(
+        f"New Course Rep Password ({selected_level})",
+        type="password"
+    )
 
     if st.button("🚀 Update Course Rep"):
         if not rep_user or not rep_pass:
@@ -179,9 +190,71 @@ def camp_dashboard():
                 log_audit(selected_level, "FAILED")
                 st.error("❌ Update failed")
 
-        except:
+        except Exception:
             log_audit(selected_level, "ERROR")
             st.error("Unexpected error occurred")
+
+# ---------------- CGPA CALCULATOR ----------------
+def cgpa_calculator():
+    st.title("📊 CGPA Calculator (FUTO)")
+
+    if "courses" not in st.session_state:
+        st.session_state.courses = []
+
+    with st.form("add_course"):
+        c1, c2, c3 = st.columns(3)
+        name = c1.text_input("Course Name")
+        units = c2.number_input("Units", min_value=1, max_value=6, step=1)
+        grade = c3.selectbox("Grade", list(GRADE_POINTS.keys()))
+
+        if st.form_submit_button("➕ Add Course"):
+            key = name.strip().lower()
+            if not key:
+                st.error("Course name required")
+            elif any(c["key"] == key for c in st.session_state.courses):
+                st.warning("Course already added")
+            else:
+                st.session_state.courses.append({
+                    "sn": len(st.session_state.courses) + 1,
+                    "name": name.strip(),
+                    "key": key,
+                    "units": units,
+                    "grade": grade
+                })
+                st.rerun()
+
+    st.divider()
+
+    total_units = 0
+    total_points = 0.0
+
+    if st.session_state.courses:
+        for c in st.session_state.courses:
+            gp = GRADE_POINTS[c["grade"]]
+            wp = gp * c["units"]
+            total_units += c["units"]
+            total_points += wp
+
+            st.write(
+                f"**{c['sn']}**. {c['name']} — "
+                f"{c['units']} units — "
+                f"{c['grade']} → {wp}"
+            )
+
+        st.divider()
+        st.write(f"**Total Units:** {total_units}")
+        st.write(f"**Total Points:** {total_points}")
+
+        if 15 <= total_units <= 30:
+            st.success(f"🎓 GPA: {round(total_points / total_units, 2)}")
+        elif total_units < 15:
+            st.warning("Minimum of 15 units required")
+        else:
+            st.error("Maximum of 30 units exceeded")
+
+    if st.button("🗑️ Clear All"):
+        st.session_state.courses = []
+        st.rerun()
 
 # ---------------- MAIN ----------------
 def main():
@@ -192,10 +265,18 @@ def main():
         login_page()
         return
 
+    page = st.sidebar.radio(
+        "Navigation",
+        ["Dashboard", "CGPA Calculator"]
+    )
+
     if st.sidebar.button("Logout"):
         logout()
 
-    camp_dashboard()
+    if page == "Dashboard":
+        camp_dashboard()
+    else:
+        cgpa_calculator()
 
 if __name__ == "__main__":
     main()
