@@ -42,32 +42,16 @@ CODES_FILE = f"codes_{LEVEL_NAME}.csv"
 
 
 SESSION_COLS = [
-    "session_id",
-    "type",
-    "title",
-    "status",
-    "date",
-    "created_at",
-    "department",
-    "course"
+    "session_id", "type", "title", "status",
+    "date", "created_at", "department", "course"
 ]
-
 
 RECORD_COLS = [
-    "session_id",
-    "name",
-    "matric",
-    "time",
-    "device_id",
-    "department"
+    "session_id", "name", "matric",
+    "time", "device_id", "department"
 ]
 
-
-CODE_COLS = [
-    "session_id",
-    "code",
-    "created_at"
-]
+CODE_COLS = ["session_id", "code", "created_at"]
 
 
 def load_csv(file, cols):
@@ -149,10 +133,9 @@ def code_valid(sid, entered):
 
 def attendance_filename(sess):
     date = sess["date"]
-    dept = sess["department"]
     course = sess["course"].replace(" ", "")
     start = sess["created_at"][11:16].replace(":", "-")
-    return f"{dept}_{LEVEL_NAME}_{course}_{date}_{start}.csv"
+    return f"{DEPARTMENT}_{LEVEL_NAME}_{course}_{date}_{start}.csv"
 
 
 def upload_attendance_to_lecturer_dashboard(date, filename, content):
@@ -248,6 +231,9 @@ def rep_dashboard():
     sessions = load_csv(SESSIONS_FILE, SESSION_COLS)
     records = load_csv(RECORDS_FILE, RECORD_COLS)
 
+    if not sessions[sessions["status"] == "Active"].empty:
+        st.warning("⚠️ Attendance is ACTIVE. End it before starting another.")
+
     att = st.selectbox("Attendance Type", ["Daily", "Per Subject"])
     course = st.text_input("Course Code") if att == "Per Subject" else ""
 
@@ -278,12 +264,37 @@ def rep_dashboard():
 
     st.write(f"Status: {sess['status']}")
 
+    # ===== ACTIVE SESSION =====
     if sess["status"] == "Active":
         code, rem = rep_live_code(sid)
         st.markdown(f"## Live Code: `{code}`")
         st.caption(f"Refresh in {rem}s")
 
-    # ================= MANUAL ENTRY =================
+        if st.button("🛑 END ATTENDANCE"):
+            sessions.loc[sessions["session_id"] == sid, "status"] = "Ended"
+            save_csv(sessions, SESSIONS_FILE)
+
+            out = data.copy().reset_index(drop=True)
+            out.insert(0, "S/N", range(1, len(out) + 1))
+
+            csv_bytes = out[
+                ["S/N", "department", "name", "matric", "time"]
+            ].to_csv(index=False).encode()
+
+            filename = attendance_filename(sess)
+
+            success = upload_attendance_to_lecturer_dashboard(
+                sess["date"], filename, csv_bytes
+            )
+
+            if not success:
+                st.error("❌ Failed to publish attendance.")
+                return
+
+            st.success("✅ Attendance locked & published")
+            st.rerun()
+
+    # ===== MANUAL ENTRY =====
     if sess["status"] == "Active":
         st.divider()
         st.subheader("➕ Manual Entry")
@@ -301,7 +312,7 @@ def rep_dashboard():
                 save_csv(records, RECORDS_FILE)
                 st.rerun()
 
-    # ================= RECORDS VIEW =================
+    # ===== RECORDS VIEW =====
     st.divider()
     st.subheader("Attendance Records")
 
@@ -309,18 +320,12 @@ def rep_dashboard():
     view.insert(0, "S/N", range(1, len(view) + 1))
     st.dataframe(view, use_container_width=True)
 
-    # ================= EDIT / DELETE =================
+    # ===== EDIT / DELETE =====
     if sess["status"] == "Active" and not view.empty:
         st.divider()
         st.subheader("✏️ Edit / 🗑️ Delete Entry")
 
-        sn = st.number_input(
-            "Select S/N",
-            min_value=1,
-            max_value=len(view),
-            value=1
-        )
-
+        sn = st.number_input("Select S/N", 1, len(view), 1)
         row = view.iloc[sn - 1]
 
         en = st.text_input("Edit Name", row["name"])
@@ -354,7 +359,6 @@ def rep_dashboard():
 
 def main():
     page = st.sidebar.selectbox("Page", ["Student", "Course Rep"])
-
     if page == "Student":
         student_page()
     else:
