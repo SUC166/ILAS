@@ -263,6 +263,13 @@ def main():
 
     if not st.session_state.logged_in:
         login_page()
+
+        # ================== FOOTER ==================
+        st.divider()
+        st.caption(
+            "❤️ Made with love by EPE2025/26. FODC. "
+            "Support: wa.me/2348118429150"
+        )
         return
 
     page = st.sidebar.radio(
@@ -277,6 +284,14 @@ def main():
         camp_dashboard()
     else:
         cgpa_calculator()
+
+    # ================== FOOTER ==================
+    st.divider()
+    st.caption(
+        "❤️ Made with love by EPE2025/26. FODC. "
+        "Support: wa.me/2348118429150"
+    )
+
 
 if __name__ == "__main__":
     main()
