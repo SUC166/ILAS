@@ -80,8 +80,6 @@ def sha256_hash(t):
 
 
 def device_id():
-    cookies = CookieManager()
-
     if "ilas_device_id" not in cookies:
         raw = f"{time.time()}{secrets.token_hex(16)}"
         did = hashlib.sha256(raw.encode()).hexdigest()
